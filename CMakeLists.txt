@@ -19,9 +19,6 @@ if(GD_FOUND)
     include_directories(${GD_INCLUDE_DIRS})
     add_executable(unclone ${SOURCES})
     target_link_libraries(unclone ${GD_LIBRARIES})
-
-    message(STATUS ${GD_INCLUDE_DIRS})
-    message(STATUS ${GD_LIBRARIES})
 endif()
 
 
