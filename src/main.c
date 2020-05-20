@@ -10,18 +10,20 @@ const int TRANSFORMED_SIZE = 64;
 
 gdImagePtr readFileAsImage(char * path);
 gdImagePtr resizeImage(gdImagePtr image, int w, int h);
-double * oneDimensionalDCT(int row[]);
-int * imageHash(gdImagePtr image);
+void oneDimensionalDCT(int* row, double* output);
+void imageHash(gdImagePtr image, int* bits, int label);
 double getMeanColorFromPixelSet(const double * pixels);
 int hammingDistance(int one[], int two[]);
+void debugDump(int * hash);
 
-        int main (int argc, char *argv[])
+int main (int argc, char *argv[])
 {
     /* Allocate vars */
     gdImagePtr sourceImage;
     gdImagePtr compImage;
-    int *compHash;
-    int *sourceHash;
+    int compHash[TRANSFORMED_SIZE];
+    int sourceHash[TRANSFORMED_SIZE];
+    int distance;
 
     if(argc < 3) {
         fprintf(stderr, "Error: Not enough arguments.\n");
@@ -33,11 +35,6 @@ int hammingDistance(int one[], int two[]);
 
     /* New file to compare against the source file for a match */
     char *compFilePath = argv[2];
-
-    if(DEBUG) {
-        fprintf(stdout, "Source File Path: %s\n", sourceFilePath);
-        fprintf(stdout, "Comparison File Path: %s\n", compFilePath);
-    }
 
     sourceImage = gdImageCreateFromFile(sourceFilePath);
     compImage = gdImageCreateFromFile(compFilePath);
@@ -64,22 +61,32 @@ int hammingDistance(int one[], int two[]);
         fprintf(stderr, "Could not convert comparison to greyscale.\n");
     }
 
-    compHash = imageHash(compImage);
-    sourceHash = imageHash(sourceImage);
+    imageHash(compImage, compHash, 1);
+    imageHash(sourceImage, sourceHash, 2);
 
-    int distance = hammingDistance(compHash, sourceHash);
+    distance = hammingDistance(compHash, sourceHash);
 
-    fprintf(stdout, "%d", distance);
+    fprintf(stdout, "Distance: %d\n", distance);
 
-    /* Cleanup */
     gdImageDestroy(sourceImage);
     gdImageDestroy(compImage);
+    return 1;
 }
 
-int * imageHash(gdImagePtr image)
+void debugDump(int * hash) {
+    for(int i; i < TRANSFORMED_SIZE; i++) {
+        fprintf(stdout, "%d", hash[i]);
+    }
+    fprintf(stdout, "\n");
+    return;
+}
+
+// complexstuff
+void imageHash(gdImagePtr image, int* bits, int label)
 {
-    double *map[TRANSFORMED_SIZE];
-    double *rows[TRANSFORMED_SIZE];
+    double map[TRANSFORMED_SIZE][TRANSFORMED_SIZE];
+    double rows[TRANSFORMED_SIZE][TRANSFORMED_SIZE];
+    double mean;
 
     for (int y = 0; y < TRANSFORMED_SIZE; y++) {
         int row[TRANSFORMED_SIZE];
@@ -87,40 +94,58 @@ int * imageHash(gdImagePtr image)
             int rgb = gdImageGetPixel(image, x, y);
             row[x] = rgb;
         }
-        rows[y] = oneDimensionalDCT(row);
+        oneDimensionalDCT(row, rows[y]);
     }
 
     for (int x = 0; x < TRANSFORMED_SIZE; x++) {
-        double col[TRANSFORMED_SIZE];
+        int col[TRANSFORMED_SIZE];
         for (int y = 0; y < TRANSFORMED_SIZE; y++) {
             col[y] = rows[y][x];
         }
-        map[x] = oneDimensionalDCT(col);
+        oneDimensionalDCT(col, map[x]);
     }
 
     double topPixels[TRANSFORMED_SIZE];
     int pixelCount = 0;
     for (int y = 0; y < sqrt(TRANSFORMED_SIZE); y++) {
         for (int x = 0; x < sqrt(TRANSFORMED_SIZE); x++) {
-            topPixels[pixelCount] = *map[y][x];
+            topPixels[pixelCount] = map[y][x];
         }
     }
 
-    double mean = getMeanColorFromPixelSet(topPixels);
+    mean = getMeanColorFromPixelSet(topPixels);
 
-    int bits[TRANSFORMED_SIZE];
     for(int p = 0; p < TRANSFORMED_SIZE; p++) {
         bits[p] = (topPixels[p] > mean);
     }
 
-    return bits;
+    return;
 }
 
-int hammingDistance(int one[], int two[])
+void oneDimensionalDCT(int* row, double* output)
 {
-    int i,length,count = 0;
+    for(int i = 0; i < TRANSFORMED_SIZE; i++) {
+        double sum = 0;
 
-    for(i=0; i<length; i++)
+        for(int j = 0; j < TRANSFORMED_SIZE; j++) {
+            sum += row[j] * cos(i * M_PI * (j + 0.5) / TRANSFORMED_SIZE);
+        }
+
+        sum *= sqrt(2 / TRANSFORMED_SIZE);
+        if(i == 0) {
+            sum *= 1 / sqrt(2);
+        }
+        output[i] = sum;
+    }
+
+    return;
+}
+
+int hammingDistance(int* one, int* two)
+{
+    int i,count = 0;
+
+    for(i=0; i<TRANSFORMED_SIZE; i++)
     {
         if(one[i] != two[i])
         {
@@ -139,27 +164,6 @@ double getMeanColorFromPixelSet(const double * pixels)
         sum += pixels[i];
     }
     return sum/n;
-}
-
-double * oneDimensionalDCT(int row[])
-{
-    double dct[TRANSFORMED_SIZE];
-
-    for(int i = 0; i < TRANSFORMED_SIZE; i++) {
-        double sum = 0;
-
-        for(int j = 0; j < TRANSFORMED_SIZE; j++) {
-            sum += row[j] * cos(i * M_PI * (j + 0.5) / TRANSFORMED_SIZE);
-        }
-
-        sum *= sqrt(2 / TRANSFORMED_SIZE);
-        if(i == 0) {
-            sum *= 1 / sqrt(2);
-        }
-        dct[i] = sum;
-    }
-
-    return dct;
 }
 
 gdImagePtr resizeImage(gdImagePtr image, int w, int h)

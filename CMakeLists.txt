@@ -21,4 +21,5 @@ if(GD_FOUND)
     target_link_libraries(unclone ${GD_LIBRARIES})
 endif()
 
+target_link_libraries(unclone m)
 
